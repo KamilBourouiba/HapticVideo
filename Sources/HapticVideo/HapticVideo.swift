@@ -13,7 +13,7 @@ import SwiftUI
 import AVKit
 import CoreHaptics
 
-public struct HapticEvent: Codable {
+public struct HapticEvent {
     public let time: TimeInterval
     public let intensity: Float
     public let frequency: Float
@@ -25,7 +25,7 @@ public struct HapticEvent: Codable {
     }
 }
 
-public struct HapticData: Codable {
+public struct HapticData {
     public let events: [HapticEvent]
     public let duration: TimeInterval
     
@@ -83,8 +83,7 @@ public struct HapticVideoData: Codable {
 public class HapticVideoPlayer: ObservableObject {
     private var engine: CHHapticEngine?
     public var hapticPlayer: CHHapticPatternPlayer?
-    public var videoPlayer: AVPlayer?
-    @Published public var currentHapticData: HapticData?
+    @Published public var player: AVPlayer?
     @Published public var isPlaying = false
     @Published public var isAnalyzing = false
     @Published public var progress: Double = 0
@@ -93,6 +92,7 @@ public class HapticVideoPlayer: ObservableObject {
     @Published public var error: String?
     private var timer: Timer?
     private var startTime: TimeInterval = 0
+    @Published public var videoURL: URL?
     
     public init() {
         setupHapticEngine()
@@ -121,93 +121,34 @@ public class HapticVideoPlayer: ObservableObject {
         }
     }
     
-    public func loadVideo(from url: URL) {
-        let playerItem = AVPlayerItem(url: url)
-        videoPlayer = AVPlayer(playerItem: playerItem)
+    public func loadVideo(url: URL) {
+        self.player = AVPlayer(url: url)
+        self.videoURL = url
     }
     
-    public func play(hapticData: HapticData, videoURL: URL? = nil) {
-        guard let engine = engine else {
-            error = "Moteur haptique non initialisé"
-            return
-        }
-        
-        currentHapticData = hapticData
-        
-        do {
-            let pattern = try createPattern(from: hapticData)
-            hapticPlayer = try engine.makePlayer(with: pattern)
-            try hapticPlayer?.start(atTime: CHHapticTimeImmediate)
-            
-            if let videoURL = videoURL {
-                let playerItem = AVPlayerItem(url: videoURL)
-                videoPlayer = AVPlayer(playerItem: playerItem)
-                videoPlayer?.play()
-            }
-            
-            isPlaying = true
-            startTime = Date().timeIntervalSince1970
-            duration = hapticData.duration
-            
-            startProgressTimer()
-        } catch {
-            self.error = "Erreur lors de la lecture haptique: \(error.localizedDescription)"
-        }
-    }
-    
-    public func resume() {
-        guard let hapticData = currentHapticData else {
-            error = "Aucune donnée haptique disponible"
-            return
-        }
-        
-        do {
-            let pattern = try createPattern(from: hapticData)
-            hapticPlayer = try engine?.makePlayer(with: pattern)
-            try hapticPlayer?.start(atTime: CHHapticTimeImmediate)
-            
-            videoPlayer?.play()
-            isPlaying = true
-            startTime = Date().timeIntervalSince1970 - currentTime
-            startProgressTimer()
-        } catch {
-            self.error = "Erreur lors de la reprise de la lecture: \(error.localizedDescription)"
-        }
+    public func play() {
+        player?.play()
+        isPlaying = true
     }
     
     public func pause() {
-        do {
-            try hapticPlayer?.stop(atTime: CHHapticTimeImmediate)
-            videoPlayer?.pause()
-            isPlaying = false
-            timer?.invalidate()
-            timer = nil
-        } catch {
-            self.error = "Erreur lors de la mise en pause: \(error.localizedDescription)"
-        }
+        player?.pause()
+        isPlaying = false
     }
     
     public func stop() {
-        do {
-            try hapticPlayer?.stop(atTime: CHHapticTimeImmediate)
-            videoPlayer?.pause()
-            isPlaying = false
-            timer?.invalidate()
-            timer = nil
-            progress = 0
-            currentTime = 0
-        } catch {
-            self.error = "Erreur lors de l'arrêt de la lecture: \(error.localizedDescription)"
-        }
+        player?.pause()
+        player?.seek(to: .zero)
+        isPlaying = false
     }
     
     public func seek(to time: Double) {
         currentTime = time
         progress = time / duration
         
-        if let videoPlayer = videoPlayer {
+        if let player = player {
             let cmTime = CMTime(seconds: time, preferredTimescale: 600)
-            videoPlayer.seek(to: cmTime)
+            player.seek(to: cmTime)
         }
         
         if let hapticPlayer = hapticPlayer, let hapticData = currentHapticData {
@@ -328,47 +269,101 @@ public class VideoHaptic {
 
 public struct HapticVideoPlayerView: View {
     @ObservedObject var player: HapticVideoPlayer
-    @State private var isDragging = false
+    @State private var showingPicker = false
     
     public init(player: HapticVideoPlayer) {
         self.player = player
     }
     
     public var body: some View {
+        VStack(spacing: 20) {
+            if let avPlayer = player.player {
+                FullScreenVideoPlayer(player: avPlayer)
+                    .frame(height: 300)
+            } else {
+                VStack {
+                    Image(systemName: "video.slash")
+                        .resizable()
+                        .frame(width: 80, height: 60)
+                        .foregroundColor(.gray)
+                    Text("Aucune vidéo sélectionnée")
+                        .foregroundColor(.gray)
+                }
+                .frame(height: 300)
+            }
+            HStack(spacing: 30) {
+                Button(action: { player.stop() }) {
+                    Image(systemName: "stop.fill").font(.largeTitle)
+                }
+                Button(action: {
+                    if player.isPlaying {
+                        player.pause()
+                    } else {
+                        player.play()
+                    }
+                }) {
+                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill").font(.largeTitle)
+                }
+            }
+            Button("Sélectionner une vidéo") {
+                showingPicker = true
+            }
+            .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.movie]) { result in
+                switch result {
+                case .success(let url):
+                    player.loadVideo(url: url)
+                case .failure:
+                    break
+                }
+            }
+        }
+        .padding()
+    }
+}
+
+public struct FullScreenVideoPlayer: UIViewControllerRepresentable {
+    let player: AVPlayer
+    
+    public func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.showsPlaybackControls = true
+        controller.entersFullScreenWhenPlaybackBegins = false
+        controller.exitsFullScreenWhenPlaybackEnds = false
+        return controller
+    }
+    public func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
+        uiViewController.player = player
+    }
+}
+
+public struct HapticVideoView: View {
+    @StateObject private var player = HapticVideoPlayer()
+    @State private var isFilePickerPresented = false
+    
+    public init() {}
+    
+    public var body: some View {
         VStack {
-            if let error = player.error {
+            if player.isAnalyzing {
+                ProgressView("Analyse en cours...", value: player.progress, total: 1.0)
+                    .progressViewStyle(LinearProgressViewStyle())
+                    .padding()
+            } else if let error = player.error {
                 Text(error)
                     .foregroundColor(.red)
                     .padding()
-        } else {
-                if let player = player.videoPlayer {
+            } else {
+                if let player = player.player {
                     VideoPlayer(player: player)
                         .frame(height: 300)
                 }
                 
                 HStack {
-                    Text(formatTime(player.currentTime))
-                    Slider(
-                        value: Binding(
-                            get: { player.progress },
-                            set: { newValue in
-                                if !isDragging {
-                                    player.seek(to: newValue * player.duration)
-                                }
-                            }
-                        ),
-                        in: 0...1
-                    )
-                    .onChange(of: player.progress) { newValue in
-                        if isDragging {
-                            player.seek(to: newValue * player.duration)
-                        }
+                    Button(action: { player.seek(to: max(0, player.currentTime - 10)) }) {
+                        Image(systemName: "gobackward.10")
                     }
-                    Text(formatTime(player.duration))
-                }
-                .padding()
-                
-                HStack {
+                    
                     Button(action: { 
                         if player.isPlaying {
                             player.pause()
@@ -377,22 +372,44 @@ public struct HapticVideoPlayerView: View {
                         }
                     }) {
                         Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.title)
+                    }
+                    
+                    Button(action: { player.seek(to: min(player.duration, player.currentTime + 10)) }) {
+                        Image(systemName: "goforward.10")
+                    }
+                }
+                .padding()
+                
+                Slider(value: $player.currentTime, in: 0...player.duration) { editing in
+                    if !editing {
+                        player.seek(to: player.currentTime)
                     }
                 }
                 .padding()
             }
+            
+            Button(action: { isFilePickerPresented = true }) {
+                Text("Sélectionner une vidéo")
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+            }
+            .fileImporter(
+                isPresented: $isFilePickerPresented,
+                allowedContentTypes: [.movie],
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    if let url = urls.first {
+                        player.loadVideo(url: url)
+                    }
+                case .failure(let error):
+                    player.error = error.localizedDescription
+                }
+            }
         }
+        .padding()
     }
-    
-    private func formatTime(_ time: Double) -> String {
-        let minutes = Int(time) / 60
-        let seconds = Int(time) % 60
-        return String(format: "%d:%02d", minutes, seconds)
-    }
-}
-
-// Pour utiliser la nouvelle interface :
-// import SwiftUI
-// let viewModel = HapticVideoViewModel()
-// HapticVideoView(viewModel: viewModel) 
+} 
