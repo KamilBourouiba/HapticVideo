@@ -367,8 +367,8 @@ public struct HapticVideoPlayerView: View {
                     Button(action: {
                         if player.isPlaying {
                             player.pause()
-                        } else {
-                            player.resume()
+                        } else if let hapticData = player.currentHapticData {
+                            player.play(hapticData: hapticData)
                         }
                     }) {
                         Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
