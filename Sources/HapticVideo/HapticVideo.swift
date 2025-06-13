@@ -82,7 +82,8 @@ public struct HapticVideoData: Codable {
 
 public class HapticVideoPlayer: ObservableObject {
     private var engine: CHHapticEngine?
-    public var player: CHHapticPatternPlayer?
+    public var hapticPlayer: CHHapticPatternPlayer?
+    public var videoPlayer: AVPlayer?
     @Published public var isPlaying = false
     @Published public var isAnalyzing = false
     @Published public var progress: Double = 0
@@ -118,7 +119,7 @@ public class HapticVideoPlayer: ObservableObject {
         }
     }
     
-    public func play(hapticData: HapticData) {
+    public func play(hapticData: HapticData, videoURL: URL? = nil) {
         guard let engine = engine else {
             error = "Moteur haptique non initialisé"
             return
@@ -126,8 +127,14 @@ public class HapticVideoPlayer: ObservableObject {
         
         do {
             let pattern = try createPattern(from: hapticData)
-            player = try engine.makePlayer(with: pattern)
-            try player?.start(atTime: CHHapticTimeImmediate)
+            hapticPlayer = try engine.makePlayer(with: pattern)
+            try hapticPlayer?.start(atTime: CHHapticTimeImmediate)
+            
+            if let videoURL = videoURL {
+                let playerItem = AVPlayerItem(url: videoURL)
+                videoPlayer = AVPlayer(playerItem: playerItem)
+                videoPlayer?.play()
+            }
             
             isPlaying = true
             startTime = Date().timeIntervalSince1970
@@ -141,7 +148,8 @@ public class HapticVideoPlayer: ObservableObject {
     
     public func stop() {
         do {
-            try player?.stop(atTime: CHHapticTimeImmediate)
+            try hapticPlayer?.stop(atTime: CHHapticTimeImmediate)
+            videoPlayer?.pause()
             isPlaying = false
             timer?.invalidate()
             timer = nil
@@ -269,7 +277,7 @@ public struct HapticVideoView: View {
                     .foregroundColor(.red)
                     .padding()
             } else {
-                if let player = player.player {
+                if let player = player.videoPlayer {
                     VideoPlayer(player: player)
                         .frame(height: 300)
                 }
