@@ -150,6 +150,26 @@ public class HapticVideoPlayer: ObservableObject {
         }
     }
     
+    public func resume() {
+        guard let hapticData = currentHapticData else {
+            error = "Aucune donnée haptique disponible"
+            return
+        }
+        
+        do {
+            let pattern = try createPattern(from: hapticData)
+            hapticPlayer = try engine?.makePlayer(with: pattern)
+            try hapticPlayer?.start(atTime: CHHapticTimeImmediate)
+            
+            videoPlayer?.play()
+            isPlaying = true
+            startTime = Date().timeIntervalSince1970 - currentTime
+            startProgressTimer()
+        } catch {
+            self.error = "Erreur lors de la reprise de la lecture: \(error.localizedDescription)"
+        }
+    }
+    
     public func pause() {
         do {
             try hapticPlayer?.stop(atTime: CHHapticTimeImmediate)
@@ -347,8 +367,8 @@ public struct HapticVideoPlayerView: View {
                     Button(action: {
                         if player.isPlaying {
                             player.pause()
-                        } else if let hapticData = player.currentHapticData {
-                            player.play(hapticData: hapticData)
+                        } else {
+                            player.resume()
                         }
                     }) {
                         Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
