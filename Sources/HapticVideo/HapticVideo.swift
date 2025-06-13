@@ -87,6 +87,7 @@ public class HapticVideoPlayer: ObservableObject {
     @Published public var isAnalyzing = false
     @Published public var progress: Double = 0
     @Published public var duration: Double = 0
+    @Published public var error: String?
     private var timer: Timer?
     private var startTime: TimeInterval = 0
     
@@ -95,7 +96,10 @@ public class HapticVideoPlayer: ObservableObject {
     }
     
     private func setupHapticEngine() {
-        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return }
+        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else {
+            error = "Haptics non supportés sur cet appareil"
+            return
+        }
         
         do {
             engine = try CHHapticEngine()
@@ -107,14 +111,18 @@ public class HapticVideoPlayer: ObservableObject {
             
             engine?.stoppedHandler = { [weak self] reason in
                 self?.isPlaying = false
+                self?.error = "Moteur haptique arrêté: \(reason)"
             }
         } catch {
-            print("Erreur lors de l'initialisation du moteur haptique: \(error)")
+            self.error = "Erreur lors de l'initialisation du moteur haptique: \(error.localizedDescription)"
         }
     }
     
     public func play(hapticData: HapticData) {
-        guard let engine = engine else { return }
+        guard let engine = engine else {
+            error = "Moteur haptique non initialisé"
+            return
+        }
         
         do {
             let pattern = try createPattern(from: hapticData)
@@ -127,16 +135,20 @@ public class HapticVideoPlayer: ObservableObject {
             
             startProgressTimer()
         } catch {
-            print("Erreur lors de la lecture haptique: \(error)")
+            self.error = "Erreur lors de la lecture haptique: \(error.localizedDescription)"
         }
     }
     
     public func stop() {
-        player?.stop(atTime: 0)
-        isPlaying = false
-        timer?.invalidate()
-        timer = nil
-        progress = 0
+        do {
+            try player?.stop(atTime: 0)
+            isPlaying = false
+            timer?.invalidate()
+            timer = nil
+            progress = 0
+        } catch {
+            self.error = "Erreur lors de l'arrêt de la lecture: \(error.localizedDescription)"
+        }
     }
     
     private func startProgressTimer() {
@@ -173,6 +185,7 @@ public class HapticVideoPlayer: ObservableObject {
 }
 
 public class VideoHaptic {
+    @available(iOS 15.0, *)
     public static func generateHapticData(from videoURL: URL) async throws -> HapticData {
         let asset = AVAsset(url: videoURL)
         
@@ -187,7 +200,26 @@ public class VideoHaptic {
         
         // Analyser l'audio
         let analyzer = AudioAnalysis()
-        let hapticEvents = try await analyzer.analyzeAudioTrack(audioTrack, duration: duration)
+        let hapticEvents = try await analyzer.analyzeAudio(from: audioTrack)
+        
+        return HapticData(events: hapticEvents, duration: duration)
+    }
+    
+    public static func generateHapticDataLegacy(from videoURL: URL) async throws -> HapticData {
+        let asset = AVAsset(url: videoURL)
+        
+        // Obtenir la durée de la vidéo
+        let duration = CMTimeGetSeconds(asset.duration)
+        
+        // Obtenir la piste audio
+        let audioTracks = asset.tracks(withMediaType: .audio)
+        guard let audioTrack = audioTracks.first else {
+            throw HapticVideoError.audioTrackNotFound
+        }
+        
+        // Analyser l'audio
+        let analyzer = AudioAnalysis()
+        let hapticEvents = try await analyzer.analyzeAudio(from: audioTrack)
         
         return HapticData(events: hapticEvents, duration: duration)
     }
