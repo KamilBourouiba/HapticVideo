@@ -121,6 +121,11 @@ public class HapticVideoPlayer: ObservableObject {
         }
     }
     
+    public func loadVideo(from url: URL) {
+        let playerItem = AVPlayerItem(url: url)
+        videoPlayer = AVPlayer(playerItem: playerItem)
+    }
+    
     public func play(hapticData: HapticData, videoURL: URL? = nil) {
         guard let engine = engine else {
             error = "Moteur haptique non initialisé"
