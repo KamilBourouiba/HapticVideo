@@ -38,6 +38,7 @@ public class HapticVideoPlayer: ObservableObject {
     private var hapticData: HapticData?
     private var timeObserver: Any?
     private var isAnalyzing = false
+    private var hapticPlayers: [CHHapticPatternPlayer] = []
     
     @Published public var isPlaying = false
     @Published public var currentTime: Double = 0
@@ -54,6 +55,62 @@ public class HapticVideoPlayer: ObservableObject {
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.1, preferredTimescale: 600), queue: .main) { [weak self] time in
             self?.currentTime = time.seconds
             self?.updateHapticFeedback()
+        }
+        
+        // Configuration des notifications pour la gestion de la mémoire
+        NotificationCenter.default.addObserver(self, selector: #selector(handleInterruption), name: AVAudioSession.interruptionNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleRouteChange), name: AVAudioSession.routeChangeNotification, object: nil)
+    }
+    
+    deinit {
+        if let timeObserver = timeObserver {
+            player.removeTimeObserver(timeObserver)
+        }
+        NotificationCenter.default.removeObserver(self)
+        stopHapticEngine()
+    }
+    
+    private func stopHapticEngine() {
+        hapticEngine?.stop()
+        hapticPlayers.removeAll()
+    }
+    
+    @objc private func handleInterruption(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        switch type {
+        case .began:
+            pause()
+            stopHapticEngine()
+        case .ended:
+            guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+            if options.contains(.shouldResume) {
+                try? hapticEngine?.start()
+                play()
+            }
+        @unknown default:
+            break
+        }
+    }
+    
+    @objc private func handleRouteChange(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
+            return
+        }
+        
+        switch reason {
+        case .oldDeviceUnavailable:
+            pause()
+            stopHapticEngine()
+        default:
+            break
         }
     }
     
@@ -102,6 +159,16 @@ public class HapticVideoPlayer: ObservableObject {
               let engine = hapticEngine,
               isPlaying else { return }
         
+        // Nettoyage des anciens joueurs haptiques
+        hapticPlayers.removeAll { player in
+            do {
+                try player.stop(atTime: 0)
+                return true
+            } catch {
+                return false
+            }
+        }
+        
         // Trouver les événements haptiques proches du temps actuel
         let currentEvents = hapticData.hapticEvents.filter { abs($0.time - currentTime) < 0.1 }
         
@@ -119,6 +186,7 @@ public class HapticVideoPlayer: ObservableObject {
                 let pattern = try CHHapticPattern(events: [hapticEvent], parameters: [])
                 let player = try engine.makePlayer(with: pattern)
                 try player.start(atTime: 0)
+                hapticPlayers.append(player)
             } catch {
                 print("Erreur haptique: \(error.localizedDescription)")
             }
