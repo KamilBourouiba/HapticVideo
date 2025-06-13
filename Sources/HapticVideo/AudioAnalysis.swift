@@ -15,7 +15,9 @@ public class AudioAnalysis {
         guard let asset = audioTrack.asset else {
             throw NSError(domain: "AudioAnalysis", code: -1, userInfo: [NSLocalizedDescriptionKey: "Asset not found"])
         }
-        let duration = try await asset.load(.duration).seconds
+        
+        // Utilisation de la méthode compatible pour obtenir la durée
+        let duration = CMTimeGetSeconds(asset.duration)
         let frameCount = Int(duration * sampleRate)
         
         // Création du buffer audio
