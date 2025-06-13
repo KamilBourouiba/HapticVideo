@@ -2,15 +2,15 @@
 import PackageDescription
 
 let package = Package(
-    name: "HAPTICKAnalyzer",
+    name: "HaptickVideo",
     platforms: [
         .iOS(.v14),
         .macOS(.v11)
     ],
     products: [
         .library(
-            name: "HAPTICKAnalyzer",
-            targets: ["HAPTICKAnalyzer"]),
+            name: "HaptickVideo",
+            targets: ["HaptickVideo"]),
     ],
     dependencies: [
         .package(url: "https://github.com/arthenica/ffmpeg-kit.git", from: "5.1.0"),
@@ -18,15 +18,15 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "HAPTICKAnalyzer",
+            name: "HaptickVideo",
             dependencies: [
                 .product(name: "FFmpegKit", package: "ffmpeg-kit"),
                 .product(name: "AudioKit", package: "AudioKit")
             ],
-            path: "Sources"),
+            path: "Sources/HaptickVideo"),
         .testTarget(
-            name: "HAPTICKAnalyzerTests",
-            dependencies: ["HAPTICKAnalyzer"],
+            name: "HaptickVideoTests",
+            dependencies: ["HaptickVideo"],
             path: "Tests"),
     ],
     swiftLanguageVersions: [.v5]
