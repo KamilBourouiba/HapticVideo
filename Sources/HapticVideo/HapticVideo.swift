@@ -88,6 +88,7 @@ public class HapticVideoPlayer: ObservableObject {
     @Published public var isAnalyzing = false
     @Published public var progress: Double = 0
     @Published public var duration: Double = 0
+    @Published public var currentTime: Double = 0
     @Published public var error: String?
     private var timer: Timer?
     private var startTime: TimeInterval = 0
@@ -154,8 +155,32 @@ public class HapticVideoPlayer: ObservableObject {
             timer?.invalidate()
             timer = nil
             progress = 0
+            currentTime = 0
         } catch {
             self.error = "Erreur lors de l'arrêt de la lecture: \(error.localizedDescription)"
+        }
+    }
+    
+    public func seek(to time: Double) {
+        currentTime = time
+        progress = time / duration
+        
+        if let videoPlayer = videoPlayer {
+            let cmTime = CMTime(seconds: time, preferredTimescale: 600)
+            videoPlayer.seek(to: cmTime)
+        }
+        
+        if let hapticPlayer = hapticPlayer {
+            do {
+                try hapticPlayer.stop(atTime: CHHapticTimeImmediate)
+                let pattern = try createPattern(from: HapticData(
+                    events: events.filter { $0.time >= time },
+                    duration: duration - time
+                ))
+                try hapticPlayer.start(atTime: CHHapticTimeImmediate)
+            } catch {
+                self.error = "Erreur lors du changement de position: \(error.localizedDescription)"
+            }
         }
     }
     
@@ -164,6 +189,7 @@ public class HapticVideoPlayer: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self = self, self.isPlaying else { return }
             let currentTime = Date().timeIntervalSince1970 - self.startTime
+            self.currentTime = currentTime
             self.progress = min(currentTime / self.duration, 1.0)
             
             if self.progress >= 1.0 {
@@ -257,6 +283,72 @@ public class VideoHaptic {
         }
         
         return events
+    }
+}
+
+public struct HapticVideoPlayerView: View {
+    @ObservedObject var player: HapticVideoPlayer
+    @State private var isDragging = false
+    
+    public init(player: HapticVideoPlayer) {
+        self.player = player
+    }
+    
+    public var body: some View {
+        VStack {
+            if let error = player.error {
+                Text(error)
+                    .foregroundColor(.red)
+                    .padding()
+            } else {
+                if let player = player.videoPlayer {
+                    VideoPlayer(player: player)
+                        .frame(height: 300)
+                }
+                
+                HStack {
+                    Text(formatTime(player.currentTime))
+                    Slider(
+                        value: Binding(
+                            get: { player.progress },
+                            set: { newValue in
+                                if !isDragging {
+                                    player.seek(to: newValue * player.duration)
+                                }
+                            }
+                        ),
+                        in: 0...1
+                    )
+                    .onChange(of: player.progress) { newValue in
+                        if isDragging {
+                            player.seek(to: newValue * player.duration)
+                        }
+                    }
+                    Text(formatTime(player.duration))
+                }
+                .padding()
+                
+                HStack {
+                    Button(action: {
+                        if player.isPlaying {
+                            player.stop()
+                        } else {
+                            player.play(hapticData: HapticData(events: [], duration: 0))
+                        }
+                    }) {
+                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.title)
+                    }
+                }
+                .padding()
+            }
+        }
+    }
+    
+    private func formatTime(_ time: Double) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 
