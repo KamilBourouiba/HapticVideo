@@ -12,7 +12,9 @@ public class AudioAnalysis {
     }
     
     public func analyzeAudio(from audioTrack: AVAssetTrack) async throws -> [String: [Float]] {
-        let asset = audioTrack.asset
+        guard let asset = audioTrack.asset else {
+            throw NSError(domain: "AudioAnalysis", code: -1, userInfo: [NSLocalizedDescriptionKey: "Asset not found"])
+        }
         let duration = try await asset.load(.duration).seconds
         let frameCount = Int(duration * sampleRate)
         
