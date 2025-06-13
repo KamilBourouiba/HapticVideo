@@ -84,6 +84,7 @@ public class HapticVideoPlayer: ObservableObject {
     private var engine: CHHapticEngine?
     public var hapticPlayer: CHHapticPatternPlayer?
     public var videoPlayer: AVPlayer?
+    private var currentHapticData: HapticData?
     @Published public var isPlaying = false
     @Published public var isAnalyzing = false
     @Published public var progress: Double = 0
@@ -125,6 +126,8 @@ public class HapticVideoPlayer: ObservableObject {
             error = "Moteur haptique non initialisé"
             return
         }
+        
+        currentHapticData = hapticData
         
         do {
             let pattern = try createPattern(from: hapticData)
@@ -170,11 +173,11 @@ public class HapticVideoPlayer: ObservableObject {
             videoPlayer.seek(to: cmTime)
         }
         
-        if let hapticPlayer = hapticPlayer {
+        if let hapticPlayer = hapticPlayer, let hapticData = currentHapticData {
             do {
                 try hapticPlayer.stop(atTime: CHHapticTimeImmediate)
                 let pattern = try createPattern(from: HapticData(
-                    events: events.filter { $0.time >= time },
+                    events: hapticData.events.filter { $0.time >= time },
                     duration: duration - time
                 ))
                 try hapticPlayer.start(atTime: CHHapticTimeImmediate)
@@ -332,8 +335,8 @@ public struct HapticVideoPlayerView: View {
                     Button(action: {
                         if player.isPlaying {
                             player.stop()
-                        } else {
-                            player.play(hapticData: HapticData(events: [], duration: 0))
+                        } else if let hapticData = player.currentHapticData {
+                            player.play(hapticData: hapticData)
                         }
                     }) {
                         Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
