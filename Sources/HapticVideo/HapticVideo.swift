@@ -11,6 +11,8 @@ import AVFoundation
 import AudioKit
 import FFmpegKit
 import Accelerate
+import SwiftUI
+import AVKit
 
 public struct HapticEvent: Codable {
     public let time: Double
@@ -28,6 +30,166 @@ public struct HapticData: Codable {
         public let fps: Int
         public let duration: Double
         public let totalFrames: Int
+    }
+}
+
+public class HapticVideoPlayer: ObservableObject {
+    private let player: AVPlayer
+    private let hapticEngine: CHHapticEngine?
+    private var hapticData: HapticData?
+    private var timeObserver: Any?
+    private var isAnalyzing = false
+    
+    @Published public var isPlaying = false
+    @Published public var currentTime: Double = 0
+    @Published public var duration: Double = 0
+    @Published public var analysisProgress: Double = 0
+    @Published public var error: String?
+    
+    public init() {
+        self.player = AVPlayer()
+        self.hapticEngine = try? CHHapticEngine()
+        try? self.hapticEngine?.start()
+        
+        // Configuration de l'observateur de temps
+        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.1, preferredTimescale: 600), queue: .main) { [weak self] time in
+            self?.currentTime = time.seconds
+            self?.updateHapticFeedback()
+        }
+    }
+    
+    public func loadVideo(url: URL) {
+        isAnalyzing = true
+        analysisProgress = 0
+        
+        Task {
+            do {
+                // Analyse de la vidéo
+                let hapticGenerator = VideoHaptic(target: url.path)
+                let data = try await hapticGenerator.generateHapticData()
+                
+                DispatchQueue.main.async {
+                    self.hapticData = data
+                    self.duration = data.metadata.duration
+                    self.player.replaceCurrentItem(with: AVPlayerItem(url: url))
+                    self.isAnalyzing = false
+                    self.analysisProgress = 1.0
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.error = error.localizedDescription
+                    self.isAnalyzing = false
+                }
+            }
+        }
+    }
+    
+    public func play() {
+        player.play()
+        isPlaying = true
+    }
+    
+    public func pause() {
+        player.pause()
+        isPlaying = false
+    }
+    
+    public func seek(to time: Double) {
+        player.seek(to: CMTime(seconds: time, preferredTimescale: 600))
+    }
+    
+    private func updateHapticFeedback() {
+        guard let hapticData = hapticData,
+              let engine = hapticEngine,
+              isPlaying else { return }
+        
+        // Trouver les événements haptiques proches du temps actuel
+        let currentEvents = hapticData.hapticEvents.filter { abs($0.time - currentTime) < 0.1 }
+        
+        for event in currentEvents {
+            do {
+                let intensity = CHHapticEventParameter(parameterID: .hapticIntensity, value: Float(event.intensity))
+                let sharpness = CHHapticEventParameter(parameterID: .hapticSharpness, value: Float(event.sharpness))
+                
+                let hapticEvent = CHHapticEvent(
+                    eventType: .hapticTransient,
+                    parameters: [intensity, sharpness],
+                    relativeTime: 0
+                )
+                
+                let pattern = try CHHapticPattern(events: [hapticEvent], parameters: [])
+                let player = try engine.makePlayer(with: pattern)
+                try player.start(atTime: 0)
+            } catch {
+                print("Erreur haptique: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
+public struct HapticVideoView: View {
+    @StateObject private var player = HapticVideoPlayer()
+    @State private var showFilePicker = false
+    
+    public init() {}
+    
+    public var body: some View {
+        VStack {
+            if player.isAnalyzing {
+                VStack {
+                    ProgressView("Analyse en cours...", value: player.analysisProgress, total: 1.0)
+                        .progressViewStyle(.linear)
+                    Text("\(Int(player.analysisProgress * 100))%")
+                }
+                .padding()
+            } else if let error = player.error {
+                Text(error)
+                    .foregroundColor(.red)
+                    .padding()
+            } else {
+                // Lecteur vidéo
+                VideoPlayer(player: player.player)
+                    .frame(height: 300)
+                
+                // Contrôles
+                HStack {
+                    Button(action: { player.isPlaying ? player.pause() : player.play() }) {
+                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.title)
+                    }
+                    
+                    Slider(value: Binding(
+                        get: { player.currentTime },
+                        set: { player.seek(to: $0) }
+                    ), in: 0...player.duration)
+                    
+                    Text(String(format: "%.1f / %.1f", player.currentTime, player.duration))
+                        .font(.caption)
+                }
+                .padding()
+            }
+            
+            // Bouton de sélection de fichier
+            Button("Sélectionner une vidéo") {
+                showFilePicker = true
+            }
+            .buttonStyle(.bordered)
+            .padding()
+        }
+        .fileImporter(
+            isPresented: $showFilePicker,
+            allowedContentTypes: [.movie],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    player.loadVideo(url: url)
+                }
+            case .failure(let error):
+                player.error = error.localizedDescription
+            }
+        }
     }
 }
 
@@ -194,16 +356,12 @@ public class VideoHaptic {
         let asset = AVAsset(url: videoURL)
         let duration = try await asset.load(.duration).seconds
         
-        // Extraction de l'audio
         let audioTrack = try await asset.loadTracks(withMediaType: .audio).first
         guard let audioTrack = audioTrack else {
             throw NSError(domain: "HapticVideo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Aucune piste audio trouvée"])
         }
         
-        // Analyse des caractéristiques audio
         let audioFeatures = try await analyzeAudioFeatures(from: audioTrack, duration: duration)
-        
-        // Génération des événements haptiques
         let hapticEvents = generateHapticEvents(from: audioFeatures, duration: duration)
         
         return HapticData(
