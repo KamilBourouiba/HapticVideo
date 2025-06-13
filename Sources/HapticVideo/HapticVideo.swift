@@ -13,7 +13,7 @@ import SwiftUI
 import AVKit
 import CoreHaptics
 
-public struct HapticEvent {
+public struct HapticEvent: Codable {
     public let time: TimeInterval
     public let intensity: Float
     public let frequency: Float
@@ -25,7 +25,7 @@ public struct HapticEvent {
     }
 }
 
-public struct HapticData {
+public struct HapticData: Codable {
     public let events: [HapticEvent]
     public let duration: TimeInterval
     
