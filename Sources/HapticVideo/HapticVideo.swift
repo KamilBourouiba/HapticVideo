@@ -364,13 +364,11 @@ public struct HapticVideoPlayerView: View {
                 .padding()
                 
                 HStack {
-                    Button(action: {
+                    Button(action: { 
                         if player.isPlaying {
                             player.pause()
-                        } else {
-                            if let hapticData = player.currentHapticData {
-                                player.play(hapticData: hapticData)
-                            }
+                        } else if let hapticData = player.currentHapticData {
+                            player.play(hapticData: hapticData)
                         }
                     }) {
                         Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
@@ -416,7 +414,13 @@ public struct HapticVideoView: View {
                         Image(systemName: "gobackward.10")
                     }
                     
-                    Button(action: { player.isPlaying ? player.pause() : player.play() }) {
+                    Button(action: { 
+                        if player.isPlaying {
+                            player.pause()
+                        } else if let hapticData = player.currentHapticData {
+                            player.play(hapticData: hapticData)
+                        }
+                    }) {
                         Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                     }
                     
