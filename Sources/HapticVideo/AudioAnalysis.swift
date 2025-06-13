@@ -12,7 +12,8 @@ public class AudioAnalysis {
     }
     
     public func analyzeAudio(from audioTrack: AVAssetTrack) async throws -> [String: [Float]] {
-        let duration = try await audioTrack.load(.duration).seconds
+        let asset = audioTrack.asset
+        let duration = try await asset.load(.duration).seconds
         let frameCount = Int(duration * sampleRate)
         
         // Création du buffer audio
@@ -48,7 +49,7 @@ public class AudioAnalysis {
         
         // Calcul du RMS
         var rms = [Float](repeating: 0, count: frameCount)
-        vDSP_rmsqv(audioBuffer, 1, &rms, 1, vDSP_Length(frameCount))
+        vDSP_rmsqv(audioBuffer, 1, &rms, vDSP_Length(frameCount))
         
         // Analyse spectrale
         var spectrum = [Float](repeating: 0, count: frameCount)
