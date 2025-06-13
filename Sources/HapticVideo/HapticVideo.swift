@@ -226,24 +226,24 @@ public class VideoHaptic {
         return HapticData(events: hapticEvents, duration: duration)
     }
     
-    private static func generateHapticEvents(from features: [String: [Float]], duration: Double) -> [HapticEvent] {
+    private static func generateHapticEvents(from features: [String: [Float]], duration: TimeInterval) -> [HapticEvent] {
         var events: [HapticEvent] = []
         let frameCount = features["rms"]?.count ?? 0
-        let frameDuration = duration / Double(frameCount)
+        let frameDuration = duration / TimeInterval(frameCount)
         
         for i in 0..<frameCount {
-            let time = Double(i) * frameDuration
+            let time = TimeInterval(i) * frameDuration
             let rms = features["rms"]?[i] ?? 0
             let magnitude = features["magnitudes"]?[i] ?? 0
             
-            let intensity = min(max(Float(rms) * 2.0, 0.0), 1.0)
-            let sharpness = min(max(Float(magnitude) * 0.5, 0.0), 1.0)
+            let intensity = min(max(rms * 2.0, 0.0), 1.0)
+            let sharpness = min(max(magnitude * 0.5, 0.0), 1.0)
             
             if intensity > 0.1 {
                 events.append(HapticEvent(
                     time: time,
-                    intensity: Double(intensity),
-                    frequency: Double(sharpness)
+                    intensity: intensity,
+                    frequency: sharpness
                 ))
             }
         }
