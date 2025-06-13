@@ -13,7 +13,13 @@ import SwiftUI
 import AVKit
 import CoreHaptics
 
-public struct HapticEvent: Codable, Identifiable {
+public enum HapticVideoError: Error {
+    case audioTrackNotFound
+    case analysisFailed
+    case invalidData
+}
+
+public struct HapticVideoEvent: Codable, Identifiable {
     public let id = UUID()
     public let time: Double
     public let intensity: Double
@@ -28,34 +34,34 @@ public struct HapticEvent: Codable, Identifiable {
     }
 }
 
-public struct HapticData: Codable {
-    public let metadata: Metadata
-    public let hapticEvents: [HapticEvent]
+public struct HapticVideoMetadata: Codable {
+    public let version: Int
+    public let fps: Int
+    public let duration: Double
+    public let totalFrames: Int
     
-    public struct Metadata: Codable {
-        public let version: Int
-        public let fps: Int
-        public let duration: Double
-        public let totalFrames: Int
-        
-        public init(version: Int, fps: Int, duration: Double, totalFrames: Int) {
-            self.version = version
-            self.fps = fps
-            self.duration = duration
-            self.totalFrames = totalFrames
-        }
+    public init(version: Int, fps: Int, duration: Double, totalFrames: Int) {
+        self.version = version
+        self.fps = fps
+        self.duration = duration
+        self.totalFrames = totalFrames
     }
+}
+
+public struct HapticVideoData: Codable {
+    public let metadata: HapticVideoMetadata
+    public let events: [HapticVideoEvent]
     
-    public init(metadata: Metadata, hapticEvents: [HapticEvent]) {
+    public init(metadata: HapticVideoMetadata, events: [HapticVideoEvent]) {
         self.metadata = metadata
-        self.hapticEvents = hapticEvents
+        self.events = events
     }
 }
 
 public class HapticVideoPlayer: ObservableObject {
     private let player: AVPlayer
     private let hapticEngine: CHHapticEngine?
-    private var hapticData: HapticData?
+    private var hapticData: HapticVideoData?
     private var timeObserver: Any?
     private var isAnalyzing = false
     private var hapticPlayers: [CHHapticPatternPlayer] = []
@@ -190,7 +196,7 @@ public class HapticVideoPlayer: ObservableObject {
         }
         
         // Trouver les événements haptiques proches du temps actuel
-        let currentEvents = hapticData.hapticEvents.filter { abs($0.time - currentTime) < 0.1 }
+        let currentEvents = hapticData.events.filter { abs($0.time - currentTime) < 0.1 }
         
         for event in currentEvents {
             do {
@@ -289,26 +295,26 @@ public class VideoHaptic {
         self.fps = fps
     }
     
-    public func generateHapticData() async throws -> HapticData {
+    public func generateHapticData() async throws -> HapticVideoData {
         let asset = AVAsset(url: videoURL)
         let duration = try await asset.load(.duration).seconds
         
         let audioTrack = try await asset.loadTracks(withMediaType: .audio).first
         guard let audioTrack = audioTrack else {
-            throw NSError(domain: "HapticVideo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Aucune piste audio trouvée"])
+            throw HapticVideoError.audioTrackNotFound
         }
         
         let audioFeatures = try await analyzeAudioFeatures(from: audioTrack, duration: duration)
-        let hapticEvents = generateHapticEvents(from: audioFeatures, duration: duration)
+        let events = generateHapticEvents(from: audioFeatures, duration: duration)
         
-        return HapticData(
-            metadata: .init(
+        return HapticVideoData(
+            metadata: HapticVideoMetadata(
                 version: 3,
                 fps: fps,
                 duration: duration,
                 totalFrames: Int(duration * Double(fps))
             ),
-            hapticEvents: hapticEvents
+            events: events
         )
     }
     
@@ -361,45 +367,29 @@ public class VideoHaptic {
         ]
     }
     
-    private func generateHapticEvents(from features: [String: [Float]], duration: Double) -> [HapticEvent] {
-        let frameCount = Int(duration * Double(fps))
-        var events: [HapticEvent] = []
+    private func generateHapticEvents(from features: [String: [Float]], duration: Double) -> [HapticVideoEvent] {
+        var events: [HapticVideoEvent] = []
+        let frameCount = features["rms"]?.count ?? 0
+        let frameDuration = duration / Double(frameCount)
         
         for i in 0..<frameCount {
-            let time = Double(i) / Double(fps)
+            let time = Double(i) * frameDuration
             let rms = features["rms"]?[i] ?? 0
             let magnitude = features["magnitudes"]?[i] ?? 0
             
-            // Calcul de l'intensité et de la netteté
-            let intensity = min(max(Double(rms) * 2, 0), 1)
-            let sharpness = min(max(Double(magnitude), 0), 1)
+            let intensity = min(max(Float(rms) * 2.0, 0.0), 1.0)
+            let sharpness = min(max(Float(magnitude) * 0.5, 0.0), 1.0)
             
-            // Détermination du type de retour haptique
-            let type = determineHapticType(intensity: intensity, sharpness: sharpness)
-            
-            // Ajout de l'événement si l'intensité est significative
-            if intensity > 0.3 {
-                events.append(HapticEvent(
+            if intensity > 0.1 {
+                events.append(HapticVideoEvent(
                     time: time,
-                    intensity: intensity,
-                    sharpness: sharpness,
-                    type: type
+                    intensity: Double(intensity),
+                    sharpness: Double(sharpness),
+                    type: "impact"
                 ))
             }
         }
         
         return events
-    }
-    
-    private func determineHapticType(intensity: Double, sharpness: Double) -> String {
-        if intensity > 0.7 && sharpness > 0.6 {
-            return "heavy"
-        } else if intensity > 0.4 && sharpness > 0.5 {
-            return "medium"
-        } else if intensity > 0.2 {
-            return "light"
-        } else {
-            return "soft"
-        }
     }
 } 
