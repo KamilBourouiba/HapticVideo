@@ -127,7 +127,7 @@ public class HapticVideoPlayer: ObservableObject {
         do {
             let pattern = try createPattern(from: hapticData)
             player = try engine.makePlayer(with: pattern)
-            try player?.start(atTime: 0)
+            try player?.start(atTime: CHHapticTimeImmediate)
             
             isPlaying = true
             startTime = Date().timeIntervalSince1970
@@ -141,7 +141,7 @@ public class HapticVideoPlayer: ObservableObject {
     
     public func stop() {
         do {
-            try player?.stop(atTime: 0)
+            try player?.stop(atTime: CHHapticTimeImmediate)
             isPlaying = false
             timer?.invalidate()
             timer = nil
@@ -174,7 +174,7 @@ public class HapticVideoPlayer: ObservableObject {
             let hapticEvent = CHHapticEvent(
                 eventType: .hapticTransient,
                 parameters: [intensity, sharpness],
-                relativeTime: Float(event.time)
+                relativeTime: TimeInterval(event.time)
             )
             
             events.append(hapticEvent)
