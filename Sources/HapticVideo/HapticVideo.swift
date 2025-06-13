@@ -150,6 +150,18 @@ public class HapticVideoPlayer: ObservableObject {
         }
     }
     
+    public func pause() {
+        do {
+            try hapticPlayer?.stop(atTime: CHHapticTimeImmediate)
+            videoPlayer?.pause()
+            isPlaying = false
+            timer?.invalidate()
+            timer = nil
+        } catch {
+            self.error = "Erreur lors de la mise en pause: \(error.localizedDescription)"
+        }
+    }
+    
     public func stop() {
         do {
             try hapticPlayer?.stop(atTime: CHHapticTimeImmediate)
@@ -334,7 +346,7 @@ public struct HapticVideoPlayerView: View {
                 HStack {
                     Button(action: {
                         if player.isPlaying {
-                            player.stop()
+                            player.pause()
                         } else if let hapticData = player.currentHapticData {
                             player.play(hapticData: hapticData)
                         }
