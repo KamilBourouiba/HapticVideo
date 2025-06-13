@@ -151,6 +151,10 @@ public class HapticVideoPlayer: ObservableObject {
         }
     }
     
+    public func getPlayer() -> CHHapticPatternPlayer? {
+        return player
+    }
+    
     private func startProgressTimer() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
