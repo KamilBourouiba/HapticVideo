@@ -1,40 +1,67 @@
-# HAPTICKAnalyzer
+# HapticVideo
 
-Un package Swift pour analyser les vidéos et générer des événements haptiques basés sur l'audio.
-
-## Fonctionnalités
-
-- Extraction audio depuis les vidéos
-- Analyse des caractéristiques audio (RMS, fréquences, rolloff spectral, bande passante)
-- Génération d'événements haptiques basés sur l'analyse
-- Sauvegarde des données au format JSON
+Un package Swift pour générer des données haptiques à partir de fichiers vidéo.
 
 ## Installation
 
-### Swift Package Manager
+Ajoutez le package à votre projet Xcode en utilisant Swift Package Manager :
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/KamilBourouiba/HAPTICKAnalyzer.git", from: "1.0.0")
+    .package(url: "https://github.com/KamilBourouiba/HapticVideo.git", from: "1.0.0")
 ]
 ```
 
 ## Utilisation
 
 ```swift
-import HAPTICKAnalyzer
+import HapticVideo
 
-let analyzer = HAPTICKAnalyzer(fps: 60)
+// Créer une instance de VideoHaptic
+let hapticGenerator = VideoHaptic(target: "chemin/vers/votre/video.mp4")
 
-// Utilisation asynchrone
+// Générer les données haptiques
 Task {
     do {
-        let videoURL = URL(fileURLWithPath: "chemin/vers/votre/video.mp4")
-        let jsonURL = try await analyzer.hapticVideo(videoURL)
-        print("Fichier JSON généré : \(jsonURL)")
+        let hapticData = try await hapticGenerator.generateHapticData()
+        // Utiliser les données haptiques...
+        print("Nombre d'événements haptiques : \(hapticData.hapticEvents.count)")
     } catch {
         print("Erreur : \(error)")
     }
+}
+```
+
+## Fonctionnalités
+
+- Analyse audio en temps réel
+- Génération d'événements haptiques basés sur l'intensité et la netteté du son
+- Support pour différents types de retours haptiques (heavy, medium, light, soft)
+- Optimisé pour les performances avec Accelerate framework
+
+## Configuration
+
+Vous pouvez personnaliser le FPS des événements haptiques lors de l'initialisation :
+
+```swift
+let hapticGenerator = VideoHaptic(target: "video.mp4", fps: 120)
+```
+
+## Structure des données
+
+Les données haptiques sont structurées comme suit :
+
+```swift
+struct HapticData {
+    let metadata: Metadata
+    let hapticEvents: [HapticEvent]
+}
+
+struct HapticEvent {
+    let time: Double
+    let intensity: Double
+    let sharpness: Double
+    let type: String
 }
 ```
 
@@ -52,8 +79,6 @@ Task {
 
 ## Licence
 
-Copyright Bourouiba Mohamed Kamil 2025.  
-All rights reserved.
+Copyright © 2024 Bourouiba Mohamed Kamil. Tous droits réservés.
 
-This code is published for reference only.  
-Do not use, copy, modify, or distribute without explicit permission. 
+Ce projet est protégé par les lois sur le droit d'auteur. Toute reproduction, distribution ou modification non autorisée est strictement interdite. 

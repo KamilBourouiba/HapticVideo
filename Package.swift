@@ -2,32 +2,29 @@
 import PackageDescription
 
 let package = Package(
-    name: "HaptickVideo",
+    name: "HapticVideo",
     platforms: [
-        .iOS(.v14),
-        .macOS(.v11)
+        .iOS(.v15),
+        .macOS(.v12)
     ],
     products: [
         .library(
-            name: "HaptickVideo",
-            targets: ["HaptickVideo"]),
+            name: "HapticVideo",
+            targets: ["HapticVideo"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/arthenica/ffmpeg-kit.git", from: "5.1.0"),
-        .package(url: "https://github.com/AudioKit/AudioKit.git", from: "5.6.1")
+        .package(url: "https://github.com/apple/swift-avfoundation.git", from: "1.0.0"),
+        .package(url: "https://github.com/apple/swift-accelerate.git", from: "1.0.0")
     ],
     targets: [
         .target(
-            name: "HaptickVideo",
+            name: "HapticVideo",
             dependencies: [
-                .product(name: "FFmpegKit", package: "ffmpeg-kit"),
-                .product(name: "AudioKit", package: "AudioKit")
-            ],
-            path: "Sources/HaptickVideo"),
+                .product(name: "AVFoundation", package: "swift-avfoundation"),
+                .product(name: "Accelerate", package: "swift-accelerate")
+            ]),
         .testTarget(
-            name: "HaptickVideoTests",
-            dependencies: ["HaptickVideo"],
-            path: "Tests"),
-    ],
-    swiftLanguageVersions: [.v5]
+            name: "HapticVideoTests",
+            dependencies: ["HapticVideo"]),
+    ]
 ) 
