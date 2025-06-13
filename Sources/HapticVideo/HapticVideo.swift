@@ -35,7 +35,7 @@ public struct HapticData: Codable {
     }
 }
 
-public struct HapticVideoError: Error {
+public enum HapticVideoError: Error {
     case audioTrackNotFound
     case analysisFailed
     case invalidData
