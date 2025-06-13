@@ -82,7 +82,7 @@ public struct HapticVideoData: Codable {
 
 public class HapticVideoPlayer: ObservableObject {
     private var engine: CHHapticEngine?
-    private var player: CHHapticPatternPlayer?
+    public var player: CHHapticPatternPlayer?
     @Published public var isPlaying = false
     @Published public var isAnalyzing = false
     @Published public var progress: Double = 0
@@ -149,10 +149,6 @@ public class HapticVideoPlayer: ObservableObject {
         } catch {
             self.error = "Erreur lors de l'arrêt de la lecture: \(error.localizedDescription)"
         }
-    }
-    
-    public func getPlayer() -> CHHapticPatternPlayer? {
-        return player
     }
     
     private func startProgressTimer() {
