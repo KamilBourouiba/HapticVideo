@@ -84,7 +84,7 @@ public class HapticVideoPlayer: ObservableObject {
     private var engine: CHHapticEngine?
     public var hapticPlayer: CHHapticPatternPlayer?
     public var videoPlayer: AVPlayer?
-    private var currentHapticData: HapticData?
+    @Published public var currentHapticData: HapticData?
     @Published public var isPlaying = false
     @Published public var isAnalyzing = false
     @Published public var progress: Double = 0
