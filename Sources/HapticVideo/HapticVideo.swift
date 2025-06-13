@@ -13,11 +13,19 @@ import SwiftUI
 import AVKit
 import CoreHaptics
 
-public struct HapticEvent: Codable {
+public struct HapticEvent: Codable, Identifiable {
+    public let id = UUID()
     public let time: Double
     public let intensity: Double
     public let sharpness: Double
     public let type: String
+    
+    public init(time: Double, intensity: Double, sharpness: Double, type: String) {
+        self.time = time
+        self.intensity = intensity
+        self.sharpness = sharpness
+        self.type = type
+    }
 }
 
 public struct HapticData: Codable {
@@ -29,6 +37,18 @@ public struct HapticData: Codable {
         public let fps: Int
         public let duration: Double
         public let totalFrames: Int
+        
+        public init(version: Int, fps: Int, duration: Double, totalFrames: Int) {
+            self.version = version
+            self.fps = fps
+            self.duration = duration
+            self.totalFrames = totalFrames
+        }
+    }
+    
+    public init(metadata: Metadata, hapticEvents: [HapticEvent]) {
+        self.metadata = metadata
+        self.hapticEvents = hapticEvents
     }
 }
 
