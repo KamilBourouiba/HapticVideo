@@ -218,23 +218,46 @@ public class VideoHaptic {
     }
     
     private func analyzeAudioFeatures(from audioTrack: AVAssetTrack, duration: Double) async throws -> [String: [Float]] {
-        // Implémentation de l'analyse audio avec Accelerate
-        // Cette partie utilise vDSP pour l'analyse spectrale
         let sampleRate: Double = 44100
         let frameCount = Int(duration * sampleRate)
         
         // Création d'un buffer pour l'audio
         var audioBuffer = [Float](repeating: 0, count: frameCount)
         
-        // Analyse RMS
+        // Analyse RMS avec vDSP
         var rms = [Float](repeating: 0, count: frameCount)
         vDSP_rmsqv(audioBuffer, 1, &rms, 1, vDSP_Length(frameCount))
         
-        // Analyse spectrale
+        // Analyse spectrale avec vDSP
         var spectrum = [Float](repeating: 0, count: frameCount)
         var magnitudes = [Float](repeating: 0, count: frameCount)
-        vDSP_fft_zrip(FFTSetup(), &spectrum, 1, vDSP_Length(frameCount), FFTDirection(kFFTDirection_Forward))
-        vDSP_zvmags(&spectrum, 1, &magnitudes, 1, vDSP_Length(frameCount))
+        
+        // Configuration de la FFT
+        let log2n = vDSP_Length(log2(Float(frameCount)))
+        let n = vDSP_Length(1 << log2n)
+        let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2))
+        
+        // Analyse spectrale
+        var realIn = [Float](repeating: 0, count: Int(n))
+        var imagIn = [Float](repeating: 0, count: Int(n))
+        var realOut = [Float](repeating: 0, count: Int(n))
+        var imagOut = [Float](repeating: 0, count: Int(n))
+        
+        var splitComplex = DSPSplitComplex(realp: &realOut, imagp: &imagOut)
+        
+        // Conversion en format split complex
+        audioBuffer.withUnsafeBytes { ptr in
+            vDSP_ctoz(ptr.baseAddress!.assumingMemoryBound(to: DSPComplex.self), 2, &splitComplex, 1, n/2)
+        }
+        
+        // Exécution de la FFT
+        vDSP_fft_zrip(setup!, &splitComplex, 1, log2n, FFTDirection(kFFTDirection_Forward))
+        
+        // Calcul des magnitudes
+        vDSP_zvmags(&splitComplex, 1, &magnitudes, 1, n/2)
+        
+        // Nettoyage
+        vDSP_destroy_fftsetup(setup)
         
         return [
             "rms": rms,

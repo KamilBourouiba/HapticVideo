@@ -12,17 +12,11 @@ let package = Package(
             name: "HapticVideo",
             targets: ["HapticVideo"]),
     ],
-    dependencies: [
-        .package(url: "https://github.com/apple/swift-avfoundation.git", from: "1.0.0"),
-        .package(url: "https://github.com/apple/swift-accelerate.git", from: "1.0.0")
-    ],
+    dependencies: [],
     targets: [
         .target(
             name: "HapticVideo",
-            dependencies: [
-                .product(name: "AVFoundation", package: "swift-avfoundation"),
-                .product(name: "Accelerate", package: "swift-accelerate")
-            ]),
+            dependencies: []),
         .testTarget(
             name: "HapticVideoTests",
             dependencies: ["HapticVideo"]),
