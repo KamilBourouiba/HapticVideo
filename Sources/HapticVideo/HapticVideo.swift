@@ -340,7 +340,7 @@ public struct HapticVideoPlayerView: View {
                 Text(error)
                     .foregroundColor(.red)
                     .padding()
-            } else {
+        } else {
                 if let player = player.videoPlayer {
                     VideoPlayer(player: player)
                         .frame(height: 300)
@@ -467,4 +467,9 @@ public struct HapticVideoView: View {
         }
         .padding()
     }
-} 
+}
+
+// Pour utiliser la nouvelle interface :
+// import SwiftUI
+// let viewModel = HapticVideoViewModel()
+// HapticVideoView(viewModel: viewModel) 
