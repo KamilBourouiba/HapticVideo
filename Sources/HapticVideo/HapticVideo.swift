@@ -13,23 +13,23 @@ import SwiftUI
 import AVKit
 import CoreHaptics
 
-public struct HapticEvent: Codable {
-    public let time: Double
+public struct HapticEvent {
+    public let time: TimeInterval
     public let intensity: Float
     public let frequency: Float
     
-    public init(time: Double, intensity: Float, frequency: Float) {
+    public init(time: TimeInterval, intensity: Float, frequency: Float) {
         self.time = time
         self.intensity = intensity
         self.frequency = frequency
     }
 }
 
-public struct HapticData: Codable {
+public struct HapticData {
     public let events: [HapticEvent]
-    public let duration: Double
+    public let duration: TimeInterval
     
-    public init(events: [HapticEvent], duration: Double) {
+    public init(events: [HapticEvent], duration: TimeInterval) {
         self.events = events
         self.duration = duration
     }
