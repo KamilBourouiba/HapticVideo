@@ -81,43 +81,26 @@ public struct HapticVideoData: Codable {
 }
 
 public class HapticVideoPlayer: ObservableObject {
-    private var engine: CHHapticEngine?
-    public var hapticPlayer: CHHapticPatternPlayer?
     @Published public var player: AVPlayer?
     @Published public var isPlaying = false
-    @Published public var isAnalyzing = false
-    @Published public var progress: Double = 0
-    @Published public var duration: Double = 0
-    @Published public var currentTime: Double = 0
-    @Published public var error: String?
+    @Published public var videoURL: URL?
+    @Published public var currentHapticData: HapticData?
+    private var engine: CHHapticEngine?
+    private var hapticPlayer: CHHapticPatternPlayer?
     private var timer: Timer?
     private var startTime: TimeInterval = 0
-    @Published public var videoURL: URL?
     
     public init() {
         setupHapticEngine()
     }
     
     private func setupHapticEngine() {
-        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else {
-            error = "Haptics non supportés sur cet appareil"
-            return
-        }
-        
+        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return }
         do {
             engine = try CHHapticEngine()
             try engine?.start()
-            
-            engine?.resetHandler = { [weak self] in
-                self?.setupHapticEngine()
-            }
-            
-            engine?.stoppedHandler = { [weak self] reason in
-                self?.isPlaying = false
-                self?.error = "Moteur haptique arrêté: \(reason)"
-            }
         } catch {
-            self.error = "Erreur lors de l'initialisation du moteur haptique: \(error.localizedDescription)"
+            print("Erreur lors de l'initialisation du moteur haptique: \(error)")
         }
     }
     
@@ -126,75 +109,60 @@ public class HapticVideoPlayer: ObservableObject {
         self.videoURL = url
     }
     
+    public func loadHapticData(_ data: HapticData) {
+        self.currentHapticData = data
+    }
+    
     public func play() {
         player?.play()
+        playHaptics()
         isPlaying = true
     }
     
     public func pause() {
         player?.pause()
+        stopHaptics()
         isPlaying = false
     }
     
     public func stop() {
         player?.pause()
         player?.seek(to: .zero)
+        stopHaptics()
         isPlaying = false
     }
     
-    public func seek(to time: Double) {
-        currentTime = time
-        progress = time / duration
-        
-        if let player = player {
-            let cmTime = CMTime(seconds: time, preferredTimescale: 600)
-            player.seek(to: cmTime)
-        }
-        
-        if let hapticPlayer = hapticPlayer, let hapticData = currentHapticData {
-            do {
-                try hapticPlayer.stop(atTime: CHHapticTimeImmediate)
-                let pattern = try createPattern(from: HapticData(
-                    events: hapticData.events.filter { $0.time >= time },
-                    duration: duration - time
-                ))
-                try hapticPlayer.start(atTime: CHHapticTimeImmediate)
-            } catch {
-                self.error = "Erreur lors du changement de position: \(error.localizedDescription)"
-            }
+    private func playHaptics() {
+        guard let engine = engine, let hapticData = currentHapticData else { return }
+        do {
+            let pattern = try createPattern(from: hapticData)
+            hapticPlayer = try engine.makePlayer(with: pattern)
+            try hapticPlayer?.start(atTime: CHHapticTimeImmediate)
+        } catch {
+            print("Erreur lors de la lecture haptique: \(error)")
         }
     }
     
-    private func startProgressTimer() {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self = self, self.isPlaying else { return }
-            let currentTime = Date().timeIntervalSince1970 - self.startTime
-            self.currentTime = currentTime
-            self.progress = min(currentTime / self.duration, 1.0)
-            
-            if self.progress >= 1.0 {
-                self.stop()
-            }
+    private func stopHaptics() {
+        do {
+            try hapticPlayer?.stop(atTime: CHHapticTimeImmediate)
+        } catch {
+            // Ignorer l'erreur
         }
     }
     
     private func createPattern(from hapticData: HapticData) throws -> CHHapticPattern {
         var events = [CHHapticEvent]()
-        
         for event in hapticData.events {
-            let intensity = CHHapticEventParameter(parameterID: .hapticIntensity, value: Float(event.intensity))
-            let sharpness = CHHapticEventParameter(parameterID: .hapticSharpness, value: Float(event.frequency))
-            
+            let intensity = CHHapticEventParameter(parameterID: .hapticIntensity, value: event.intensity)
+            let sharpness = CHHapticEventParameter(parameterID: .hapticSharpness, value: event.frequency)
             let hapticEvent = CHHapticEvent(
                 eventType: .hapticTransient,
                 parameters: [intensity, sharpness],
-                relativeTime: TimeInterval(event.time)
+                relativeTime: event.time
             )
-            
             events.append(hapticEvent)
         }
-        
         return try CHHapticPattern(events: events, parameters: [])
     }
 }
@@ -270,6 +238,7 @@ public class VideoHaptic {
 public struct HapticVideoPlayerView: View {
     @ObservedObject var player: HapticVideoPlayer
     @State private var showingPicker = false
+    @State private var showingHapticPicker = false
     
     public init(player: HapticVideoPlayer) {
         self.player = player
@@ -312,6 +281,20 @@ public struct HapticVideoPlayerView: View {
                 switch result {
                 case .success(let url):
                     player.loadVideo(url: url)
+                case .failure:
+                    break
+                }
+            }
+            Button("Sélectionner un fichier haptique") {
+                showingHapticPicker = true
+            }
+            .fileImporter(isPresented: $showingHapticPicker, allowedContentTypes: [.json]) { result in
+                switch result {
+                case .success(let url):
+                    if let data = try? Data(contentsOf: url),
+                       let hapticData = try? JSONDecoder().decode(HapticData.self, from: data) {
+                        player.loadHapticData(hapticData)
+                    }
                 case .failure:
                     break
                 }
