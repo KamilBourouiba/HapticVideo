@@ -8,11 +8,10 @@
 
 import Foundation
 import AVFoundation
-import AudioKit
-import FFmpegKit
 import Accelerate
 import SwiftUI
 import AVKit
+import CoreHaptics
 
 public struct HapticEvent: Codable {
     public let time: Double

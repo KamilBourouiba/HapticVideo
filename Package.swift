@@ -16,7 +16,10 @@ let package = Package(
     targets: [
         .target(
             name: "HapticVideo",
-            dependencies: []),
+            dependencies: [],
+            swiftSettings: [
+                .define("DEBUG", .when(configuration: .debug))
+            ]),
         .testTarget(
             name: "HapticVideoTests",
             dependencies: ["HapticVideo"]),
