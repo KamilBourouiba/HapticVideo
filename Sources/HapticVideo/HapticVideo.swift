@@ -81,30 +81,21 @@ public struct HapticVideoData: Codable {
 }
 
 public class HapticVideoPlayer: ObservableObject {
+    private var engine: CHHapticEngine?
+    private var player: CHHapticPatternPlayer?
     @Published public var isPlaying = false
-    @Published public var currentTime: Double = 0
-    @Published public var duration: Double = 0
     @Published public var isAnalyzing = false
     @Published public var progress: Double = 0
-    @Published public var error: String?
-    
-    private var player: AVPlayer?
-    private var playerItem: AVPlayerItem?
-    private var timeObserver: Any?
-    private var engine: CHHapticEngine?
-    private var playerPattern: CHHapticPattern?
-    private var playerPatternPlayer: CHHapticPatternPlayer?
-    private var hapticData: HapticData?
+    @Published public var duration: Double = 0
+    private var timer: Timer?
+    private var startTime: TimeInterval = 0
     
     public init() {
         setupHapticEngine()
     }
     
     private func setupHapticEngine() {
-        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else {
-            error = "Haptics non supportés sur cet appareil"
-            return
-        }
+        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return }
         
         do {
             engine = try CHHapticEngine()
@@ -115,127 +106,90 @@ public class HapticVideoPlayer: ObservableObject {
             }
             
             engine?.stoppedHandler = { [weak self] reason in
-                self?.error = "Moteur haptique arrêté: \(reason)"
+                self?.isPlaying = false
             }
         } catch {
-            self.error = "Erreur lors de l'initialisation du moteur haptique: \(error.localizedDescription)"
+            print("Erreur lors de l'initialisation du moteur haptique: \(error)")
         }
     }
     
-    public func loadVideo(from url: URL) {
-        let asset = AVAsset(url: url)
-        let playerItem = AVPlayerItem(asset: asset)
-        self.playerItem = playerItem
-        self.player = AVPlayer(playerItem: playerItem)
+    public func play(hapticData: HapticData) {
+        guard let engine = engine else { return }
+        
+        do {
+            let pattern = try createPattern(from: hapticData)
+            player = try engine.makePlayer(with: pattern)
+            try player?.start(atTime: 0)
+            
+            isPlaying = true
+            startTime = Date().timeIntervalSince1970
+            duration = hapticData.duration
+            
+            startProgressTimer()
+        } catch {
+            print("Erreur lors de la lecture haptique: \(error)")
+        }
+    }
+    
+    public func stop() {
+        player?.stop(atTime: 0)
+        isPlaying = false
+        timer?.invalidate()
+        timer = nil
+        progress = 0
+    }
+    
+    private func startProgressTimer() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self = self, self.isPlaying else { return }
+            let currentTime = Date().timeIntervalSince1970 - self.startTime
+            self.progress = min(currentTime / self.duration, 1.0)
+            
+            if self.progress >= 1.0 {
+                self.stop()
+            }
+        }
+    }
+    
+    private func createPattern(from hapticData: HapticData) throws -> CHHapticPattern {
+        var events = [CHHapticEvent]()
+        
+        for event in hapticData.events {
+            let intensity = CHHapticEventParameter(parameterID: .hapticIntensity, value: Float(event.intensity))
+            let sharpness = CHHapticEventParameter(parameterID: .hapticSharpness, value: Float(event.frequency))
+            
+            let hapticEvent = CHHapticEvent(
+                eventType: .hapticTransient,
+                parameters: [intensity, sharpness],
+                relativeTime: event.time
+            )
+            
+            events.append(hapticEvent)
+        }
+        
+        return try CHHapticPattern(events: events, parameters: [])
+    }
+}
+
+public class VideoHaptic {
+    public static func generateHapticData(from videoURL: URL) async throws -> HapticData {
+        let asset = AVAsset(url: videoURL)
         
         // Obtenir la durée de la vidéo
-        let duration = CMTimeGetSeconds(asset.duration)
-        self.duration = duration
-        
-        // Configurer l'observateur de temps
-        let interval = CMTime(seconds: 0.1, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-        timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            self?.currentTime = CMTimeGetSeconds(time)
-            self?.updateHapticFeedback()
-        }
-        
-        // Analyser la vidéo pour les données haptiques
-        analyzeVideo(asset)
-    }
-    
-    private func analyzeVideo(_ asset: AVAsset) {
-        isAnalyzing = true
-        progress = 0
+        let duration = try await asset.load(.duration).seconds
         
         // Obtenir la piste audio
-        let audioTracks = asset.tracks(withMediaType: .audio)
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
         guard let audioTrack = audioTracks.first else {
-            error = "Aucune piste audio trouvée"
-            isAnalyzing = false
-            return
+            throw HapticVideoError.audioTrackNotFound
         }
         
-        // Analyser l'audio pour générer les données haptiques
+        // Analyser l'audio
         let analyzer = AudioAnalysis()
+        let hapticEvents = try await analyzer.analyzeAudioTrack(audioTrack, duration: duration)
         
-        Task {
-            do {
-                let analysis = try await analyzer.analyzeAudio(from: audioTrack)
-                let events = generateHapticEvents(from: analysis)
-                hapticData = HapticData(events: events, duration: duration)
-                isAnalyzing = false
-                progress = 1.0
-            } catch {
-                self.error = "Erreur lors de l'analyse: \(error.localizedDescription)"
-                isAnalyzing = false
-            }
-        }
-    }
-    
-    private func generateHapticEvents(from analysis: [String: [Float]]) -> [HapticEvent] {
-        var events: [HapticEvent] = []
-        let rms = analysis["rms"] ?? []
-        let spectrum = analysis["spectrum"] ?? []
-        
-        for i in 0..<min(rms.count, spectrum.count) {
-            let time = Double(i) * 0.1 // 100ms par frame
-            let intensity = rms[i]
-            let frequency = spectrum[i]
-            
-            if intensity > 0.1 { // Seuil d'intensité
-                events.append(HapticEvent(time: time, intensity: intensity, frequency: frequency))
-            }
-        }
-        
-        return events
-    }
-    
-    private func updateHapticFeedback() {
-        guard let hapticData = hapticData,
-              let engine = engine,
-              engine.isRunning else { return }
-        
-        // Trouver les événements haptiques pour le temps actuel
-        let currentEvents = hapticData.events.filter { abs($0.time - currentTime) < 0.1 }
-        
-        for event in currentEvents {
-            do {
-                let intensity = CHHapticEventParameter(parameterID: .hapticIntensity, value: event.intensity)
-                let sharpness = CHHapticEventParameter(parameterID: .hapticSharpness, value: event.frequency)
-                
-                let hapticEvent = CHHapticEvent(eventType: .hapticTransient,
-                                              parameters: [intensity, sharpness],
-                                              relativeTime: 0)
-                
-                let pattern = try CHHapticPattern(events: [hapticEvent], parameters: [])
-                let player = try engine.makePlayer(with: pattern)
-                try player.start(atTime: 0)
-            } catch {
-                self.error = "Erreur lors de la lecture haptique: \(error.localizedDescription)"
-            }
-        }
-    }
-    
-    public func play() {
-        player?.play()
-        isPlaying = true
-    }
-    
-    public func pause() {
-        player?.pause()
-        isPlaying = false
-    }
-    
-    public func seek(to time: Double) {
-        let cmTime = CMTime(seconds: time, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-        player?.seek(to: cmTime)
-    }
-    
-    deinit {
-        if let timeObserver = timeObserver {
-            player?.removeTimeObserver(timeObserver)
-        }
-        engine?.stop()
+        return HapticData(events: hapticEvents, duration: duration)
     }
 }
 
@@ -307,113 +261,5 @@ public struct HapticVideoView: View {
             }
         }
         .padding()
-    }
-}
-
-public class VideoHaptic {
-    private let videoURL: URL
-    private let fps: Int
-    
-    public init(target: String, fps: Int = 60) {
-        self.videoURL = URL(fileURLWithPath: target)
-        self.fps = fps
-    }
-    
-    public func generateHapticData() async throws -> HapticVideoData {
-        let asset = AVAsset(url: videoURL)
-        let duration = try await asset.load(.duration).seconds
-        
-        let audioTrack = try await asset.loadTracks(withMediaType: .audio).first
-        guard let audioTrack = audioTrack else {
-            throw HapticVideoError.audioTrackNotFound
-        }
-        
-        let audioFeatures = try await analyzeAudioFeatures(from: audioTrack, duration: duration)
-        let events = generateHapticEvents(from: audioFeatures, duration: duration)
-        
-        return HapticVideoData(
-            metadata: HapticVideoMetadata(
-                version: 3,
-                fps: fps,
-                duration: duration,
-                totalFrames: Int(duration * Double(fps))
-            ),
-            events: events
-        )
-    }
-    
-    private func analyzeAudioFeatures(from audioTrack: AVAssetTrack, duration: Double) async throws -> [String: [Float]] {
-        let sampleRate: Double = 44100
-        let frameCount = Int(duration * sampleRate)
-        
-        // Création d'un buffer pour l'audio
-        var audioBuffer = [Float](repeating: 0, count: frameCount)
-        
-        // Analyse RMS avec vDSP
-        var rms = [Float](repeating: 0, count: frameCount)
-        vDSP_rmsqv(audioBuffer, 1, &rms, 1, vDSP_Length(frameCount))
-        
-        // Analyse spectrale avec vDSP
-        var spectrum = [Float](repeating: 0, count: frameCount)
-        var magnitudes = [Float](repeating: 0, count: frameCount)
-        
-        // Configuration de la FFT
-        let log2n = vDSP_Length(log2(Float(frameCount)))
-        let n = vDSP_Length(1 << log2n)
-        let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2))
-        
-        // Analyse spectrale
-        var realIn = [Float](repeating: 0, count: Int(n))
-        var imagIn = [Float](repeating: 0, count: Int(n))
-        var realOut = [Float](repeating: 0, count: Int(n))
-        var imagOut = [Float](repeating: 0, count: Int(n))
-        
-        var splitComplex = DSPSplitComplex(realp: &realOut, imagp: &imagOut)
-        
-        // Conversion en format split complex
-        audioBuffer.withUnsafeBytes { ptr in
-            vDSP_ctoz(ptr.baseAddress!.assumingMemoryBound(to: DSPComplex.self), 2, &splitComplex, 1, n/2)
-        }
-        
-        // Exécution de la FFT
-        vDSP_fft_zrip(setup!, &splitComplex, 1, log2n, FFTDirection(kFFTDirection_Forward))
-        
-        // Calcul des magnitudes
-        vDSP_zvmags(&splitComplex, 1, &magnitudes, 1, n/2)
-        
-        // Nettoyage
-        vDSP_destroy_fftsetup(setup)
-        
-        return [
-            "rms": rms,
-            "spectrum": spectrum,
-            "magnitudes": magnitudes
-        ]
-    }
-    
-    private func generateHapticEvents(from features: [String: [Float]], duration: Double) -> [HapticVideoEvent] {
-        var events: [HapticVideoEvent] = []
-        let frameCount = features["rms"]?.count ?? 0
-        let frameDuration = duration / Double(frameCount)
-        
-        for i in 0..<frameCount {
-            let time = Double(i) * frameDuration
-            let rms = features["rms"]?[i] ?? 0
-            let magnitude = features["magnitudes"]?[i] ?? 0
-            
-            let intensity = min(max(Float(rms) * 2.0, 0.0), 1.0)
-            let sharpness = min(max(Float(magnitude) * 0.5, 0.0), 1.0)
-            
-            if intensity > 0.1 {
-                events.append(HapticVideoEvent(
-                    time: time,
-                    intensity: Double(intensity),
-                    sharpness: Double(sharpness),
-                    type: "impact"
-                ))
-            }
-        }
-        
-        return events
     }
 } 
