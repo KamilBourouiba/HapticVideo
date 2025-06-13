@@ -174,7 +174,7 @@ public class HapticVideoPlayer: ObservableObject {
             let hapticEvent = CHHapticEvent(
                 eventType: .hapticTransient,
                 parameters: [intensity, sharpness],
-                relativeTime: event.time
+                relativeTime: Float(event.time)
             )
             
             events.append(hapticEvent)
