@@ -1,0 +1,47 @@
+client:
+  name: basic
+  file-system: device-agnostic
+tools: {}
+targets:
+  "HapticVideo-arm64-apple-macosx16.0-debug.module": ["<HapticVideo-arm64-apple-macosx16.0-debug.module>"]
+  "PackageStructure": ["<PackageStructure>"]
+  "main": ["<HapticVideo-arm64-apple-macosx16.0-debug.module>"]
+  "test": ["<HapticVideo-arm64-apple-macosx16.0-debug.module>"]
+default: "main"
+nodes:
+  "/Users/apprenant122/Documents/HAPTICK/HapticVideo/Sources/HapticVideo/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+commands:
+  "/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/apprenant122/Documents/HAPTICK/HapticVideo/Sources/HapticVideo/AudioAnalysis.swift","/Users/apprenant122/Documents/HAPTICK/HapticVideo/Sources/HapticVideo/HapticVideo.swift","/Users/apprenant122/Documents/HAPTICK/HapticVideo/Sources/HapticVideo/Models/HapticMetadata.swift"]
+    outputs: ["/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/sources"]
+    description: "Write auxiliary file /Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/sources"
+
+  "/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt":
+    tool: write-auxiliary-file
+    inputs: ["<swift-get-version>","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"]
+    outputs: ["/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"]
+    always-out-of-date: "true"
+    description: "Write auxiliary file /Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+
+  "<HapticVideo-arm64-apple-macosx16.0-debug.module>":
+    tool: phony
+    inputs: ["/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/AudioAnalysis.swift.o","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/HapticVideo.swift.o","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/HapticMetadata.swift.o","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/Modules/HapticVideo.swiftmodule"]
+    outputs: ["<HapticVideo-arm64-apple-macosx16.0-debug.module>"]
+
+  "C.HapticVideo-arm64-apple-macosx16.0-debug.module":
+    tool: shell
+    inputs: ["/Users/apprenant122/Documents/HAPTICK/HapticVideo/Sources/HapticVideo/AudioAnalysis.swift","/Users/apprenant122/Documents/HAPTICK/HapticVideo/Sources/HapticVideo/HapticVideo.swift","/Users/apprenant122/Documents/HAPTICK/HapticVideo/Sources/HapticVideo/Models/HapticMetadata.swift","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/sources"]
+    outputs: ["/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/AudioAnalysis.swift.o","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/HapticVideo.swift.o","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/HapticMetadata.swift.o","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/Modules/HapticVideo.swiftmodule"]
+    description: "Compiling Swift Module 'HapticVideo' (3 sources)"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-module-name","HapticVideo","-emit-dependencies","-emit-module","-emit-module-path","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/Modules/HapticVideo.swiftmodule","-output-file-map","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/output-file-map.json","-parse-as-library","-incremental","-c","@/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/sources","-I","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/Modules","-target","arm64-apple-macosx11.0","-enable-batch-mode","-index-store-path","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-j11","-DSWIFT_PACKAGE","-DDEBUG","-module-cache-path","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-parse-as-library","-emit-objc-header","-emit-objc-header-path","/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/HapticVideo-Swift.h","-color-diagnostics","-swift-version","5","-DDEBUG","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-Xcc","-fPIC","-Xcc","-g"]
+
+  "PackageStructure":
+    tool: package-structure-tool
+    inputs: ["/Users/apprenant122/Documents/HAPTICK/HapticVideo/Sources/HapticVideo/","/Users/apprenant122/Documents/HAPTICK/HapticVideo/Package.swift","/Users/apprenant122/Documents/HAPTICK/HapticVideo/Package.resolved"]
+    outputs: ["<PackageStructure>"]
+    description: "Planning build"
+    allow-missing-inputs: true
+

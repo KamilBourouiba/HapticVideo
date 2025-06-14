@@ -1,0 +1,4 @@
+module HapticVideo {
+    header "/Users/apprenant122/Documents/HAPTICK/HapticVideo/.build/arm64-apple-macosx/debug/HapticVideo.build/HapticVideo-Swift.h"
+    requires objc
+}

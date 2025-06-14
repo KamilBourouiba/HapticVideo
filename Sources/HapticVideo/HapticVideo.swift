@@ -86,6 +86,10 @@ public class HapticVideoPlayer: ObservableObject {
     @Published public var videoURL: URL?
     @Published public var currentHapticData: HapticData?
     @Published public var isAnalyzing: Bool = false
+    @Published public var progress: Double = 0
+    @Published public var currentTime: Double = 0
+    @Published public var duration: Double = 1
+    @Published public var error: String? = nil
     private var engine: CHHapticEngine?
     private var hapticPlayer: CHHapticPatternPlayer?
     private var timer: Timer?
@@ -165,6 +169,14 @@ public class HapticVideoPlayer: ObservableObject {
             events.append(hapticEvent)
         }
         return try CHHapticPattern(events: events, parameters: [])
+    }
+    
+    public func seek(to time: Double) {
+        currentTime = time
+        if let player = player {
+            let cmTime = CMTime(seconds: time, preferredTimescale: 600)
+            player.seek(to: cmTime)
+        }
     }
 }
 
@@ -249,7 +261,6 @@ public struct HapticVideoPlayerView: View {
         VStack(spacing: 20) {
             if let avPlayer = player.player {
                 FullScreenVideoPlayer(player: avPlayer)
-                    .frame(height: 300)
             } else {
                 VStack {
                     Image(systemName: "video.slash")
@@ -351,8 +362,8 @@ public struct HapticVideoView: View {
                     Button(action: { 
                         if player.isPlaying {
                             player.pause()
-                        } else if let hapticData = player.currentHapticData {
-                            player.play(hapticData: hapticData)
+                        } else {
+                            player.play()
                         }
                     }) {
                         Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")

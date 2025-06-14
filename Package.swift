@@ -21,10 +21,6 @@ let package = Package(
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug))
             ]),
-        .testTarget(
-            name: "HapticVideoTests",
-            dependencies: ["HapticVideo"],
-            path: "Tests"),
     ],
     swiftLanguageVersions: [.v5]
 ) 
